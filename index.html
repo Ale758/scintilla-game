@@ -176,14 +176,17 @@
     a mezz'aria), raccolti passandoci sopra
   - pattern di ostacoli: doppio, salta-poi-abbassati, abbassati-poi-
     salta, fila bassa — invece del solito ostacolo singolo
+  - audio sintetizzato (Web Audio API, zero file esterni): salto,
+    abbassarsi, raccolta power-up, game over
 
   Per restare corretti quando la velocità cambia, la larghezza degli
   ostacoli "larghi" e la distanza nei pattern combinati sono calcolate
   in base alla velocità attuale (vedi safeWideWidth/comboGapPx), non
   fissate in pixel — così restano sempre superabili.
 
-  Idee per il prossimo giro: nuovo tema visivo, audio con Web Audio
-  API, record persistente (serve localStorage, funziona fuori da
+  Idee per il prossimo giro: un pulsante muto, un suono quando lo
+  scudo assorbe un colpo, un suono quando si atterra, nuovo tema
+  visivo, record persistente (serve localStorage, funziona fuori da
   Claude, es. GitHub Pages/Vercel), pausa, verticale su mobile.
 
   Costanti utili da ritoccare: GRAVITY, JUMP_V (fisica del salto),
@@ -239,6 +242,7 @@
   let offsetFar = 0, offsetGround = 0;
   let dpr = 1;
   let activePointerId = null;
+  let audioCtx = null;
 
   function resetGame() {
     player = {
@@ -280,23 +284,81 @@
   }
 
   // ---------- 3) Logica di gioco ----------
+
+  // Audio: sintetizzato con Web Audio API, zero file esterni (stessa
+  // tecnica usata in FOSCA). L'AudioContext si crea/riattiva al primo
+  // input, perché i browser bloccano l'audio finché l'utente non
+  // interagisce con la pagina. playTone() è l'unico "sintetizzatore":
+  // ogni suono è solo una combinazione diversa dei suoi parametri.
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playTone({ freq, freqEnd = null, delay = 0, duration = 0.15, type = 'sine', peakGain = 0.2 }) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime + delay;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, t + duration * 0.6);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peakGain, t + Math.min(0.01, duration * 0.1));
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + duration + 0.02);
+  }
+
+  function playBounceSound(isExtraJump) {
+    const wobble = (Math.random() - 0.5) * 30;
+    const f = (isExtraJump ? 460 : 380) + wobble;
+    playTone({ freq: f, freqEnd: f * 1.9, duration: 0.15, type: 'sine', peakGain: 0.22 });
+  }
+
+  function playDuckSound() {
+    const wobble = (Math.random() - 0.5) * 20;
+    const f = 320 + wobble;
+    playTone({ freq: f, freqEnd: f * 0.55, duration: 0.12, type: 'sine', peakGain: 0.18 });
+  }
+
+  function playCollectSound(kind) {
+    const base = kind === 'shield' ? 520 : 660;
+    playTone({ freq: base, duration: 0.16, type: 'triangle', peakGain: 0.2 });
+    playTone({ freq: base * 1.5, delay: 0.07, duration: 0.16, type: 'triangle', peakGain: 0.2 });
+  }
+
+  function playGameOverSound() {
+    playTone({ freq: 320, freqEnd: 160, duration: 0.35, type: 'triangle', peakGain: 0.2 });
+    playTone({ freq: 220, freqEnd: 100, duration: 0.4, delay: 0.08, type: 'triangle', peakGain: 0.16 });
+  }
+
   function jump() {
+    ensureAudio();
     if (state === 'start' || state === 'gameover') { startGame(); return; }
     if (state !== 'playing' || player.isDucking) return;
     if (player.onGround) {
       player.vy = JUMP_V;
       player.onGround = false;
       player.squash = 1.3;
+      playBounceSound(false);
     } else if (player.extraJumps > 0) {
       player.extraJumps -= 1;
       player.vy = JUMP_V * 0.92;
       player.squash = 1.3;
       spawnBurstParticles(player.x, player.y, true);
+      playBounceSound(true);
     }
   }
 
   function startDuck() {
-    if (state === 'playing') player.isDucking = true;
+    if (state !== 'playing') return;
+    if (!player.isDucking) playDuckSound();
+    player.isDucking = true;
   }
   function endDuck() {
     player.isDucking = false;
@@ -310,6 +372,7 @@
 
   function endGame() {
     state = 'gameover';
+    playGameOverSound();
     best = Math.max(best, Math.floor(score));
     bestVal.textContent = best;
     overlayTitle.textContent = 'Spenta!';
@@ -433,6 +496,7 @@
         if (p.kind === 'shield') player.shieldTime = SHIELD_DURATION;
         else player.extraJumps = Math.min(1, player.extraJumps + 1);
         spawnBurstParticles(p.x, p.y, true);
+        playCollectSound(p.kind);
       }
       return !hit;
     });
