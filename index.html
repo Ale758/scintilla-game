@@ -35,6 +35,10 @@
     padding: 3px;
     background: linear-gradient(135deg, rgba(255,209,102,.4), rgba(122,59,94,.3));
     box-shadow: 0 30px 80px rgba(0,0,0,.55);
+    transition: background 0.6s ease;
+  }
+  #frame.zen {
+    background: linear-gradient(135deg, rgba(143,233,221,.45), rgba(93,120,163,.3));
   }
 
   #inner {
@@ -67,8 +71,36 @@
     text-transform: uppercase;
   }
   .hud .value { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  #score-val.boosted { color: var(--runner); text-shadow: 0 0 10px rgba(255,209,102,.7); }
   #score-box { left: 20px; align-items: flex-start; }
   #best-box { right: 20px; align-items: flex-end; }
+
+  #hud-controls {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+  }
+  .hud-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1.5px solid rgba(245,239,230,.3);
+    background: rgba(10,7,16,.4);
+    color: var(--ui-text);
+    cursor: pointer;
+  }
+  .hud-btn svg { width: 15px; height: 15px; }
+  .hud-btn:hover { background: rgba(10,7,16,.6); }
+  .hud-btn:focus-visible { outline: 2px solid var(--ui-text); outline-offset: 2px; }
+  .hud-btn:active { transform: translateY(1px); }
+  #pause-btn { display: none; }
 
   #overlay {
     position: absolute;
@@ -109,23 +141,30 @@
   }
   #final-score { font-size: 38px; color: var(--runner); font-weight: 700; }
 
-  button#restart {
+  #mode-hint {
+    font-size: 12px;
+    color: var(--ui-dim);
+    max-width: 320px;
+    line-height: 1.45;
+    margin: 0;
+  }
+  #mode-buttons { display: flex; gap: 10px; margin-top: 4px; }
+  .mode-btn {
     font: inherit;
     font-weight: 700;
     letter-spacing: .04em;
     text-transform: uppercase;
     font-size: 14px;
-    padding: 13px 30px;
+    padding: 13px 26px;
     border-radius: 999px;
     border: none;
-    background: var(--runner);
-    color: #2b1a00;
     cursor: pointer;
-    margin-top: 6px;
   }
-  button#restart:hover { filter: brightness(1.06); }
-  button#restart:focus-visible { outline: 3px solid var(--ui-text); outline-offset: 3px; }
-  button#restart:active { transform: translateY(1px); }
+  #btn-normal { background: var(--runner); color: #2b1a00; }
+  #btn-zen { background: #8FE9DD; color: #05302b; }
+  .mode-btn:hover { filter: brightness(1.06); }
+  .mode-btn:focus-visible { outline: 3px solid var(--ui-text); outline-offset: 3px; }
+  .mode-btn:active { transform: translateY(1px); }
 
   @media (prefers-reduced-motion: reduce) {
     #overlay { transition: none; }
@@ -138,12 +177,28 @@
       <canvas id="game" width="960" height="460"
         aria-label="Area di gioco: Scintilla, corsa infinita a schivare ostacoli"></canvas>
 
+      <div id="hud-controls">
+        <button id="mute-btn" class="hud-btn" type="button" aria-label="Disattiva audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 9v6h3l4.5 4V5L7 9H4z" fill="currentColor" stroke="none"></path>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
+            <path d="M18 6a8.5 8.5 0 0 1 0 12" opacity="0.6"></path>
+          </svg>
+        </button>
+        <button id="pause-btn" class="hud-btn" type="button" aria-label="Metti in pausa">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+            <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+          </svg>
+        </button>
+      </div>
+
       <div class="hud" id="score-box">
         <span class="label">Punti</span>
         <span class="value" id="score-val">0</span>
       </div>
       <div class="hud" id="best-box">
-        <span class="label">Record</span>
+        <span class="label" id="best-label">Record</span>
         <span class="value" id="best-val">0</span>
       </div>
 
@@ -154,7 +209,11 @@
           <div class="tiny">Punteggio finale</div>
           <div id="final-score">0</div>
         </div>
-        <button id="restart" type="button">Accendi</button>
+        <p id="mode-hint">Zen: niente game over — quando ti colpiscono torni indietro di un paio di secondi invece di ricominciare.</p>
+        <div id="mode-buttons">
+          <button id="btn-normal" class="mode-btn" type="button">Normale</button>
+          <button id="btn-zen" class="mode-btn" type="button">Zen</button>
+        </div>
       </div>
     </div>
   </div>
@@ -171,23 +230,45 @@
 
   Novità di questa versione:
   - ostacoli volanti: si schivano abbassandosi (freccia GIÙ, o tocco
-    nella metà bassa dello schermo)
-  - power-up: scudo (assorbe un colpo) e doppio salto (un salto extra
-    a mezz'aria), raccolti passandoci sopra
+    nella metà bassa dello schermo), e oscillano leggermente in
+    orizzontale mentre arrivano (solo posizione, non altezza: i
+    margini di sicurezza per abbassarsi restano identici)
+  - power-up: scudo (assorbe un colpo), doppio salto (un salto extra
+    a mezz'aria) e moltiplicatore di punti (×2 per qualche secondo,
+    icona a scintilla), raccolti passandoci sopra
   - pattern di ostacoli: doppio, salta-poi-abbassati, abbassati-poi-
     salta, fila bassa — invece del solito ostacolo singolo
   - audio sintetizzato (Web Audio API, zero file esterni): salto,
     abbassarsi, raccolta power-up, game over
+  - pausa: tasto P o ESC, oppure il pulsante in alto durante la
+    partita (si mette in pausa da sola anche cambiando scheda)
+  - musica di sottofondo: un carillon delicato con una melodia vera di 4
+    battute (non solo 2) — una frase che scende, poi una che risale con
+    un piccolo abbellimento in cima e ridiscende. Si arricchisce in 3
+    livelli con la velocità: armonia parallela, poi basso più frequente
+    e un leggero scintillio (vedi musicIntensity/scheduleNote). Pulsante
+    muto in alto (controlla sia la musica sia gli effetti sonori)
+  - due modalità, scelte con due pulsanti separati nella schermata
+    iniziale/game over: Normale (game over vero quando vieni colpito) e
+    Zen (invece di finire, lo stato di gioco torna indietro di ~1.7s,
+    come se l'ostacolo non fosse mai arrivato — vedi rewindToBeforeHit
+    /captureSnapshot). La cornice diventa verde acqua in Zen. Record
+    separato per ciascuna modalità (non avrebbe senso confrontarli,
+    Zen è strutturalmente più permissiva)
+  - record persistente via localStorage (loadBest/saveBest): funziona
+    una volta ospitato fuori da Claude (es. GitHub Pages, Vercel).
+    Dentro Claude il record vale solo per la sessione corrente — il
+    try/catch evita che il gioco si rompa quando localStorage non è
+    disponibile
 
   Per restare corretti quando la velocità cambia, la larghezza degli
   ostacoli "larghi" e la distanza nei pattern combinati sono calcolate
   in base alla velocità attuale (vedi safeWideWidth/comboGapPx), non
   fissate in pixel — così restano sempre superabili.
 
-  Idee per il prossimo giro: un pulsante muto, un suono quando lo
-  scudo assorbe un colpo, un suono quando si atterra, nuovo tema
-  visivo, record persistente (serve localStorage, funziona fuori da
-  Claude, es. GitHub Pages/Vercel), pausa, verticale su mobile.
+  Idee per il prossimo giro: un power-up magnete (attira i bonus vicini),
+  un suono quando lo scudo assorbe un colpo, un suono quando si atterra,
+  altri temi/pattern musicali, nuovo tema visivo, verticale su mobile.
 
   Costanti utili da ritoccare: GRAVITY, JUMP_V (fisica del salto),
   SHIELD_DURATION, SCORE_UNLOCK_* e le formule di "speed"/"spawnGap".
@@ -203,7 +284,14 @@
   const overlayText = document.getElementById('overlay-text');
   const finalScoreWrap = document.getElementById('final-score-wrap');
   const finalScoreEl = document.getElementById('final-score');
-  const restartBtn = document.getElementById('restart');
+  const modeHint = document.getElementById('mode-hint');
+  const modeButtons = document.getElementById('mode-buttons');
+  const btnNormal = document.getElementById('btn-normal');
+  const btnZen = document.getElementById('btn-zen');
+  const bestLabel = document.getElementById('best-label');
+  const frameEl = document.getElementById('frame');
+  const pauseBtn = document.getElementById('pause-btn');
+  const muteBtn = document.getElementById('mute-btn');
 
   const COLORS = {
     skyTop: '#170B2E',
@@ -231,23 +319,35 @@
   const JUMP_AIRTIME = 2 * Math.abs(JUMP_V) / GRAVITY; // ~0.545s, usato per la sicurezza dei pattern
   const DUCK_R = 8;
   const SHIELD_DURATION = 4.5;
+  const MULTIPLIER_DURATION = 6;
+  const MULTIPLIER_VALUE = 2;
+  const WOBBLE_AMPLITUDE = 16, WOBBLE_SPEED = 8; // oscillazione orizzontale ostacoli volanti
   const SCORE_UNLOCK_FLYING = 15;
   const SCORE_UNLOCK_PATTERNS = 35;
+  const REWIND_TARGET = 1.7;   // secondi indietro a cui tornare in modalità zen
+  const REWIND_INTERVAL = 0.15; // ogni quanto salvare uno snapshot
+  const REWIND_MAX_AGE = 2.2;  // quanta storia tenere in memoria
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ---------- 2) Stato di gioco ----------
-  let state = 'start'; // 'start' | 'playing' | 'gameover'
+  let state = 'start'; // 'start' | 'playing' | 'paused' | 'gameover'
+  let gameMode = 'normal'; // 'normal' | 'zen'
   let player, obstacles, particles, stars, powerUps;
-  let speed, spawnTimer, spawnGap, powerTimer, powerGap, score, best = 0, shake, lastTime;
-  let offsetFar = 0, offsetGround = 0;
+  let speed, spawnTimer, spawnGap, powerTimer, powerGap, score, shake, lastTime;
+  let bestNormal = 0, bestZen = 0;
+  let offsetFar = 0, offsetGround = 0, gameTime = 0;
   let dpr = 1;
   let activePointerId = null;
   let audioCtx = null;
+  let masterGain = null, musicGain = null;
+  let isMuted = false;
+  let musicPlaying = false, musicNextNoteTime = 0, musicStep = 0, musicSchedulerId = null;
+  let rewindBuffer = [], rewindTimer = 0, flashAlpha = 0;
 
   function resetGame() {
     player = {
       x: 130, y: GROUND_Y, vy: 0, r: 15, squash: 1, onGround: true,
-      isDucking: false, shieldTime: 0, extraJumps: 0
+      isDucking: false, shieldTime: 0, extraJumps: 0, multiplierTime: 0
     };
     obstacles = [];
     particles = [];
@@ -261,7 +361,77 @@
     shake = 0;
     offsetFar = 0;
     offsetGround = 0;
+    gameTime = 0;
+    rewindBuffer = [];
+    rewindTimer = 0;
     lastTime = performance.now();
+  }
+
+  // ---- Record persistente: usa localStorage, quindi funziona una volta che
+  // il gioco è ospitato fuori da Claude (GitHub Pages, Vercel...). Dentro
+  // Claude localStorage non è disponibile: il try/catch fa in modo che il
+  // gioco funzioni comunque, semplicemente senza ricordare il record tra
+  // una sessione e l'altra.
+  function loadBest(mode) {
+    try {
+      const v = localStorage.getItem('scintilla-best-' + mode);
+      return v ? (parseInt(v, 10) || 0) : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+  function saveBest(mode, value) {
+    try {
+      localStorage.setItem('scintilla-best-' + mode, String(value));
+    } catch (e) {
+      // record valido solo per questa sessione
+    }
+  }
+  function updateBestDisplay() {
+    bestLabel.textContent = gameMode === 'zen' ? 'Record Zen' : 'Record';
+    bestVal.textContent = gameMode === 'zen' ? bestZen : bestNormal;
+  }
+
+  // ---- Modalità Zen: invece di un game over, riporta lo stato di gioco a
+  // ~1-2 secondi prima, come se l'ostacolo non fosse mai arrivato. Salva
+  // un'istantanea leggera dello stato ogni REWIND_INTERVAL secondi, tenendo
+  // solo gli ultimi REWIND_MAX_AGE secondi.
+  function captureSnapshot() {
+    rewindBuffer.push({
+      time: gameTime,
+      player: { ...player },
+      obstacles: obstacles.map(o => ({ ...o })),
+      powerUps: powerUps.map(p => ({ ...p })),
+      score, speed, spawnTimer, spawnGap, powerTimer, powerGap,
+      offsetFar, offsetGround
+    });
+    while (rewindBuffer.length && gameTime - rewindBuffer[0].time > REWIND_MAX_AGE) {
+      rewindBuffer.shift();
+    }
+  }
+
+  function rewindToBeforeHit() {
+    if (rewindBuffer.length === 0) return false;
+    const targetTime = gameTime - REWIND_TARGET;
+    let snap = rewindBuffer[0];
+    for (const s of rewindBuffer) {
+      if (s.time <= targetTime) snap = s; else break;
+    }
+    player = { ...snap.player };
+    obstacles = snap.obstacles.map(o => ({ ...o }));
+    powerUps = snap.powerUps.map(p => ({ ...p }));
+    score = snap.score;
+    speed = snap.speed;
+    spawnTimer = snap.spawnTimer;
+    spawnGap = snap.spawnGap;
+    powerTimer = snap.powerTimer;
+    powerGap = snap.powerGap;
+    offsetFar = snap.offsetFar;
+    offsetGround = snap.offsetGround;
+    gameTime = snap.time;
+    particles = [];
+    rewindBuffer = rewindBuffer.filter(s => s.time <= snap.time);
+    return true;
   }
 
   function makeStars() {
@@ -290,10 +460,20 @@
   // input, perché i browser bloccano l'audio finché l'utente non
   // interagisce con la pagina. playTone() è l'unico "sintetizzatore":
   // ogni suono è solo una combinazione diversa dei suoi parametri.
+  // Tutto passa da masterGain (per il muto) — la musica passa anche
+  // da musicGain (il suo "volume" relativo agli effetti sonori).
   function ensureAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) audioCtx = new AC();
+      if (AC) {
+        audioCtx = new AC();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = isMuted ? 0 : 1;
+        masterGain.connect(audioCtx.destination);
+        musicGain = audioCtx.createGain();
+        musicGain.gain.value = 0.4;
+        musicGain.connect(masterGain);
+      }
     }
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   }
@@ -309,7 +489,7 @@
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(peakGain, t + Math.min(0.01, duration * 0.1));
     gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    osc.connect(gain).connect(audioCtx.destination);
+    osc.connect(gain).connect(masterGain);
     osc.start(t);
     osc.stop(t + duration + 0.02);
   }
@@ -327,7 +507,7 @@
   }
 
   function playCollectSound(kind) {
-    const base = kind === 'shield' ? 520 : 660;
+    const base = kind === 'shield' ? 520 : kind === 'multiplier' ? 780 : 660;
     playTone({ freq: base, duration: 0.16, type: 'triangle', peakGain: 0.2 });
     playTone({ freq: base * 1.5, delay: 0.07, duration: 0.16, type: 'triangle', peakGain: 0.2 });
   }
@@ -337,9 +517,159 @@
     playTone({ freq: 220, freqEnd: 100, duration: 0.4, delay: 0.08, type: 'triangle', peakGain: 0.16 });
   }
 
+  // "boomerang" di tono: scende e poi risale, per far sentire un
+  // riavvolgimento nel tempo invece di una semplice botta o una fine
+  function playRewindSound() {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(520, t);
+    osc.frequency.exponentialRampToValueAtTime(190, t + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(560, t + 0.3);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.36);
+  }
+
+  // ---- Musica di sottofondo: carillon delicato, con una melodia vera e
+  // propria che si ripete (2 battute in pentatonica maggiore, sempre
+  // consonante). L'energia sale con la velocità aggiungendo un'armonia
+  // parallela e un basso più frequente — mai con toni duri o percussioni,
+  // resta sempre nel registro "carillon". Sequencer look-ahead a 16-esimi:
+  // uno scheduler (setInterval) controlla ogni 25ms se ci sono note nei
+  // prossimi 100ms e le programma con la precisione a campione
+  // dell'AudioContext (setInterval da solo avrebbe un timing impreciso).
+  const MUSIC_BPM = 120;
+  const MUSIC_STEP_DUR = 60 / MUSIC_BPM / 4; // durata di un 16-esimo
+  const MUSIC_LOOKAHEAD = 0.1;
+  const PENTA = [0, 2, 4, 7, 9]; // pentatonica maggiore: sempre consonante
+  const MELODY_ROOT = 440; // La4
+  // 64 valori = un 16-esimo ciascuno (4 battute), null = pausa.
+  // Struttura: battute 1-2 discendono da C#5 fino alla tonica (frase A),
+  // battute 3-4 risalgono e poi ridiscendono, con un piccolo abbellimento
+  // (un giro di note) proprio sul punto più acuto (frase B, la "risposta").
+  const MELODY = [
+    2, null, 4, null, 3, null, null, null, 1, null, 0, null, 2, null, null, null,
+    4, null, 3, null, 2, null, null, null, 0, null, null, null, 2, null, null, null,
+    0, null, 1, null, 2, null, null, null, 3, null, 4, 3, 4, null, null, null,
+    3, null, 2, null, 1, null, null, null, 0, null, null, null, null, null, null, null
+  ];
+
+  function noteFreq(degree, octave = 0) {
+    const d = ((degree % PENTA.length) + PENTA.length) % PENTA.length;
+    return MELODY_ROOT * Math.pow(2, (PENTA[d] + 12 * octave) / 12);
+  }
+
+  // tono principale "a carillon": fondamentale morbida + un'armonica alta
+  // debole per il tipico luccichio metallico, senza nulla di aspro
+  function playChime(t, freq, peakGain, duration) {
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(freq, t);
+    gain1.gain.setValueAtTime(0.0001, t);
+    gain1.gain.exponentialRampToValueAtTime(peakGain, t + 0.008);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc1.connect(gain1).connect(musicGain);
+    osc1.start(t);
+    osc1.stop(t + duration + 0.05);
+
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(freq * 4, t);
+    gain2.gain.setValueAtTime(0.0001, t);
+    gain2.gain.exponentialRampToValueAtTime(peakGain * 0.25, t + 0.006);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, t + duration * 0.5);
+    osc2.connect(gain2).connect(musicGain);
+    osc2.start(t);
+    osc2.stop(t + duration * 0.5 + 0.05);
+  }
+
+  function playBassPluck(t) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(noteFreq(0, -2), t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.15, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + MUSIC_STEP_DUR * 6);
+    osc.connect(gain).connect(musicGain);
+    osc.start(t);
+    osc.stop(t + MUSIC_STEP_DUR * 6.5);
+  }
+
+  // 0 = solo melodia + basso ogni battuta
+  // 1 = + armonia parallela (una terza sopra, sempre consonante)
+  // 2 = + basso ogni mezza battuta e un leggero scintillio nelle pause
+  function musicIntensity() {
+    if (speed > 440) return 2;
+    if (speed > 320) return 1;
+    return 0;
+  }
+
+  function scheduleNote(step, t) {
+    const intensity = musicIntensity();
+    const sBar = step % 16;        // posizione dentro la battuta corrente (per il basso)
+    const sMel = step % MELODY.length; // posizione dentro l'intera melodia di 4 battute
+
+    if (sBar === 0 || (intensity >= 2 && sBar === 8)) {
+      playBassPluck(t);
+    }
+
+    const deg = MELODY[sMel];
+    if (deg !== null) {
+      playChime(t, noteFreq(deg), 0.16, MUSIC_STEP_DUR * 3);
+      if (intensity >= 1) playChime(t, noteFreq(deg + 2), 0.07, MUSIC_STEP_DUR * 3);
+    } else if (intensity >= 2 && sMel % 16 === 7) {
+      playChime(t, noteFreq(4, 1), 0.05, MUSIC_STEP_DUR * 1.2);
+    }
+  }
+
+  function musicScheduler() {
+    while (musicNextNoteTime < audioCtx.currentTime + MUSIC_LOOKAHEAD) {
+      scheduleNote(musicStep, musicNextNoteTime);
+      musicNextNoteTime += MUSIC_STEP_DUR;
+      musicStep++;
+    }
+  }
+
+  function startMusic() {
+    if (!audioCtx || musicPlaying) return;
+    musicPlaying = true;
+    musicStep = 0;
+    musicNextNoteTime = audioCtx.currentTime + 0.05;
+    musicSchedulerId = setInterval(musicScheduler, 25);
+  }
+
+  function stopMusic() {
+    musicPlaying = false;
+    if (musicSchedulerId) {
+      clearInterval(musicSchedulerId);
+      musicSchedulerId = null;
+    }
+  }
+
+  const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h3l4.5 4V5L7 9H4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12" opacity="0.6"/></svg>';
+  const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h3l4.5 4V5L7 9H4z" fill="currentColor" stroke="none"/><path d="M16 9l5 6M21 9l-5 6"/></svg>';
+
+  function toggleMute() {
+    ensureAudio();
+    isMuted = !isMuted;
+    if (masterGain) masterGain.gain.value = isMuted ? 0 : 1;
+    muteBtn.innerHTML = isMuted ? ICON_SOUND_OFF : ICON_SOUND_ON;
+    muteBtn.setAttribute('aria-label', isMuted ? 'Riattiva audio' : 'Disattiva audio');
+  }
+
   function jump() {
     ensureAudio();
     if (state === 'start' || state === 'gameover') { startGame(); return; }
+    if (state === 'paused') { resumeGame(); return; }
     if (state !== 'playing' || player.isDucking) return;
     if (player.onGround) {
       player.vy = JUMP_V;
@@ -368,18 +698,53 @@
     resetGame();
     state = 'playing';
     overlay.classList.add('hidden');
+    pauseBtn.style.display = 'flex';
+    frameEl.classList.toggle('zen', gameMode === 'zen');
+    updateBestDisplay();
+    startMusic();
+  }
+
+  function pauseGame() {
+    if (state !== 'playing') return;
+    state = 'paused';
+    pauseBtn.style.display = 'none';
+    stopMusic();
+    overlayTitle.textContent = 'In pausa';
+    overlayText.textContent = 'Premi P, ESC, SPAZIO o tocca lo schermo per riprendere.';
+    finalScoreWrap.style.display = 'none';
+    modeHint.style.display = 'none';
+    modeButtons.style.display = 'none';
+    overlay.classList.remove('hidden');
+  }
+
+  function resumeGame() {
+    if (state !== 'paused') return;
+    state = 'playing';
+    pauseBtn.style.display = 'flex';
+    overlay.classList.add('hidden');
+    startMusic();
+  }
+
+  function togglePause() {
+    if (state === 'playing') pauseGame();
+    else if (state === 'paused') resumeGame();
   }
 
   function endGame() {
     state = 'gameover';
+    pauseBtn.style.display = 'none';
+    stopMusic();
     playGameOverSound();
-    best = Math.max(best, Math.floor(score));
-    bestVal.textContent = best;
+    const finalScore = Math.floor(score);
+    if (gameMode === 'zen') { bestZen = Math.max(bestZen, finalScore); saveBest('zen', bestZen); }
+    else { bestNormal = Math.max(bestNormal, finalScore); saveBest('normal', bestNormal); }
+    updateBestDisplay();
     overlayTitle.textContent = 'Spenta!';
-    overlayText.textContent = 'Hai toccato un ostacolo. Premi SPAZIO, la freccia SU, oppure tocca lo schermo per riaccenderti.';
+    overlayText.textContent = 'Hai toccato un ostacolo. Scegli come continuare.';
     finalScoreWrap.style.display = 'block';
-    finalScoreEl.textContent = Math.floor(score);
-    restartBtn.textContent = 'Riaccendi';
+    finalScoreEl.textContent = finalScore;
+    modeHint.style.display = '';
+    modeButtons.style.display = '';
     overlay.classList.remove('hidden');
     shake = 12;
   }
@@ -392,7 +757,18 @@
 
   function spawnFlyingObstacle(dx) {
     const h = 34, w = 46, bottom = GROUND_Y - 20;
-    obstacles.push({ x: LOGICAL_W + 20 + (dx || 0), y: bottom - h, w, h, type: 'flying' });
+    obstacles.push({
+      x: LOGICAL_W + 20 + (dx || 0), y: bottom - h, w, h, type: 'flying',
+      wobblePhase: Math.random() * Math.PI * 2
+    });
+  }
+
+  // Oscillazione orizzontale degli ostacoli volanti (solo visiva/di posizione,
+  // non tocca l'altezza: i margini di sicurezza per abbassarsi restano
+  // identici, cambia solo il momento esatto in cui arrivano).
+  function wobbleX(o) {
+    if (o.type !== 'flying') return 0;
+    return Math.sin(gameTime * WOBBLE_SPEED + o.wobblePhase) * WOBBLE_AMPLITUDE;
   }
 
   // Larghezza massima con cui un ostacolo "largo" resta superabile con un
@@ -427,7 +803,8 @@
   }
 
   function spawnPowerUp() {
-    const kind = Math.random() < 0.5 ? 'shield' : 'jump';
+    const r = Math.random();
+    const kind = r < 0.34 ? 'shield' : r < 0.67 ? 'jump' : 'multiplier';
     powerUps.push({ x: LOGICAL_W + 20, y: GROUND_Y - 90, r: 13, kind });
   }
 
@@ -447,13 +824,18 @@
   function update(dt) {
     if (state !== 'playing') return;
 
-    score += dt * (speed / 60);
-    scoreVal.textContent = Math.floor(score);
+    gameTime += dt;
+
+    const boosted = player.multiplierTime > 0;
+    score += dt * (speed / 60) * (boosted ? MULTIPLIER_VALUE : 1);
+    scoreVal.textContent = Math.floor(score) + (boosted ? ' ×' + MULTIPLIER_VALUE : '');
+    scoreVal.classList.toggle('boosted', boosted);
 
     speed = Math.min(520, 260 + score * 0.85);
     spawnGap = Math.max(900, 1400 - score * 2.5);
 
     if (player.shieldTime > 0) player.shieldTime = Math.max(0, player.shieldTime - dt);
+    if (player.multiplierTime > 0) player.multiplierTime = Math.max(0, player.multiplierTime - dt);
 
     // fisica del giocatore
     player.vy += GRAVITY * dt;
@@ -494,6 +876,7 @@
       const hit = Math.sqrt(ddx * ddx + ddy * ddy) < (p.r + player.r * 0.8);
       if (hit) {
         if (p.kind === 'shield') player.shieldTime = SHIELD_DURATION;
+        else if (p.kind === 'multiplier') player.multiplierTime = MULTIPLIER_DURATION;
         else player.extraJumps = Math.min(1, player.extraJumps + 1);
         spawnBurstParticles(p.x, p.y, true);
         playCollectSound(p.kind);
@@ -510,6 +893,16 @@
     }
     particles = particles.filter(p => p.age < p.life);
 
+    // in modalità zen, salva uno snapshot leggero ogni tanto per poter
+    // riavvolgere lo stato quando arriva una collisione
+    if (gameMode === 'zen') {
+      rewindTimer += dt;
+      if (rewindTimer >= REWIND_INTERVAL) {
+        rewindTimer = 0;
+        captureSnapshot();
+      }
+    }
+
     // collisione con ostacoli: cerchio del giocatore, ridotto se abbassato
     const isCrouched = player.isDucking && player.onGround;
     const ccx = player.x;
@@ -517,7 +910,8 @@
     const forgiveness = isCrouched ? (DUCK_R - 3) : (player.r - 3);
     let destroyedOne = false;
     for (const o of obstacles) {
-      const nx = Math.max(o.x, Math.min(ccx, o.x + o.w));
+      const ox = o.x + wobbleX(o);
+      const nx = Math.max(ox, Math.min(ccx, ox + o.w));
       const ny = Math.max(o.y, Math.min(ccy, o.y + o.h));
       const ddx = ccx - nx, ddy = ccy - ny;
       if (ddx * ddx + ddy * ddy < forgiveness * forgiveness) {
@@ -528,7 +922,12 @@
           shake = 8;
           o.destroyed = true;
           destroyedOne = true;
-          spawnBurstParticles(o.x + o.w / 2, o.y + o.h / 2, true);
+          spawnBurstParticles(ox + o.w / 2, o.y + o.h / 2, true);
+        } else if (gameMode === 'zen' && rewindToBeforeHit()) {
+          shake = 10;
+          flashAlpha = 0.55;
+          playRewindSound();
+          break; // lo stato e` cambiato sotto i piedi del ciclo, meglio uscire qui
         } else {
           endGame();
         }
@@ -538,6 +937,7 @@
     if (destroyedOne) obstacles = obstacles.filter(o => !o.destroyed);
 
     if (shake > 0) shake = Math.max(0, shake - dt * 36);
+    if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - dt * 3);
   }
 
   // ---------- 4) Disegno ----------
@@ -621,11 +1021,12 @@
   function drawObstacles() {
     for (const o of obstacles) {
       const isFlying = o.type === 'flying';
+      const ox = o.x + wobbleX(o);
       ctx.fillStyle = isFlying ? COLORS.flying : COLORS.obstacle;
       ctx.strokeStyle = isFlying ? COLORS.flyingEdge : COLORS.obstacleEdge;
       ctx.lineWidth = 1.5;
       const bumps = Math.max(1, Math.round(o.w / 34));
-      spikePath(o.x, o.y, o.w, o.h, bumps);
+      spikePath(ox, o.y, o.w, o.h, bumps);
       ctx.fill();
       ctx.stroke();
       if (isFlying) {
@@ -633,10 +1034,10 @@
         ctx.lineWidth = 1;
         ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        ctx.moveTo(o.x + o.w * 0.25, o.y);
-        ctx.lineTo(o.x + o.w * 0.25, 0);
-        ctx.moveTo(o.x + o.w * 0.75, o.y);
-        ctx.lineTo(o.x + o.w * 0.75, 0);
+        ctx.moveTo(ox + o.w * 0.25, o.y);
+        ctx.lineTo(ox + o.w * 0.25, 0);
+        ctx.moveTo(ox + o.w * 0.75, o.y);
+        ctx.lineTo(ox + o.w * 0.75, 0);
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -672,7 +1073,7 @@
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-      } else {
+      } else if (p.kind === 'jump') {
         ctx.beginPath();
         ctx.moveTo(p.x, y - r);
         ctx.lineTo(p.x + r * 0.7, y);
@@ -681,6 +1082,17 @@
         ctx.lineTo(p.x - r * 0.3, y + r * 0.8);
         ctx.lineTo(p.x - r * 0.3, y);
         ctx.lineTo(p.x - r * 0.7, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        // moltiplicatore: scintilla a 4 punte
+        ctx.beginPath();
+        ctx.moveTo(p.x, y - r);
+        ctx.quadraticCurveTo(p.x, y, p.x + r, y);
+        ctx.quadraticCurveTo(p.x, y, p.x, y + r);
+        ctx.quadraticCurveTo(p.x, y, p.x - r, y);
+        ctx.quadraticCurveTo(p.x, y, p.x, y - r);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -772,6 +1184,10 @@
     drawParticles();
     drawPlayer();
     ctx.restore();
+    if (flashAlpha > 0) {
+      ctx.fillStyle = 'rgba(200,230,255,' + flashAlpha + ')';
+      ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    }
   }
 
   // ---------- 5) Game loop e input ----------
@@ -795,13 +1211,20 @@
     } else if (e.code === 'ArrowDown') {
       e.preventDefault();
       startDuck();
+    } else if (e.code === 'KeyP' || e.code === 'Escape') {
+      e.preventDefault();
+      togglePause();
     }
   });
   window.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowDown') endDuck();
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { endDuck(); activePointerId = null; }
+    if (document.hidden) {
+      endDuck();
+      activePointerId = null;
+      if (state === 'playing') pauseGame();
+    }
   });
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -822,6 +1245,14 @@
     if (e.pointerId === activePointerId) { endDuck(); activePointerId = null; }
   });
   overlay.addEventListener('click', jump);
+  pauseBtn.addEventListener('click', pauseGame);
+  muteBtn.addEventListener('click', toggleMute);
+  btnNormal.addEventListener('click', () => { gameMode = 'normal'; });
+  btnZen.addEventListener('click', () => { gameMode = 'zen'; });
+
+  bestNormal = loadBest('normal');
+  bestZen = loadBest('zen');
+  updateBestDisplay();
 
   resize();
   makeStars();

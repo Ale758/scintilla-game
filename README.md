@@ -8,7 +8,22 @@ Un unico file HTML autosufficiente: HTML5 Canvas, JavaScript puro, zero dipenden
 
 - **Salto**: SPAZIO, freccia SU, oppure tocco nella metà alta dello schermo
 - **Abbassarsi** (per schivare gli ostacoli volanti): freccia GIÙ, oppure tocco nella metà bassa dello schermo
-- **Power-up**: raccogli i bagliori turchesi — uno scudo (assorbe un colpo) e un doppio salto (un salto extra a mezz'aria)
+- **Pausa**: tasto P o ESC, oppure il pulsante in alto durante la partita
+- **Muto**: il pulsante a forma di altoparlante in alto — disattiva sia la musica che gli effetti sonori
+- **Power-up**: raccogli i bagliori turchesi — uno scudo (assorbe un colpo), un doppio salto (un salto extra a mezz'aria) e un moltiplicatore di punti (×2 per qualche secondo)
+
+C'è anche una musica di sottofondo generata al volo (nessun file audio, quindi zero problemi di copyright), che si intensifica in tre livelli man mano che la partita accelera.
+
+### Due modalità
+
+- **Normale**: quando vieni colpito è game over, si ricomincia da capo.
+- **Zen**: quando vieni colpito, invece di finire, torni indietro di circa 2 secondi — come se l'ostacolo non fosse mai arrivato — e continui. Niente game over, pensata per giocare senza pressione. La cornice diventa verde acqua per riconoscerla a colpo d'occhio.
+
+Si sceglie con due pulsanti nella schermata iniziale (e in quella di game over, per cambiare modalità alla partita successiva). Ogni modalità tiene il proprio record separato, visibile in alto a destra.
+
+### Record
+
+Il punteggio migliore si salva automaticamente nel browser (localStorage) e resta ricordato tra una visita e l'altra — **ma solo una volta che il gioco è ospitato fuori da Claude** (GitHub Pages, Vercel, ecc.). Nell'anteprima dentro Claude il record vale solo per la sessione corrente, perché Claude non permette il salvataggio nel browser.
 
 ## Come pubblicarlo gratis
 
